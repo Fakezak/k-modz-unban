@@ -1,11 +1,6 @@
-// api/id.js — /id?id=<UID> returns OK + userid + isban
+// api/id.js — responses in the format the client understands
 const SUSPENSION_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
-const DAY_MS = 24 * 60 * 60 * 1000;
 
-// ============================================================
-// BAN LIST — "UID": "ISO date ban started"
-// Server adds 5 days. Delete the line to unban.
-// ============================================================
 const BANS = {
   "8749607076": "2026-10-15T00:00:00Z",
 };
@@ -17,39 +12,24 @@ export default function handler(req, res) {
 
   const playerId = req.query.id;
 
-  // ---- No UID → OK with empty userid ----
+  // No UID → OK
   if (!playerId) {
-    res.setHeader("x-ban-status", "ok");
-    res.setHeader("x-ban-color", "green");
-    return res.status(200).send("OK userid=unknown isban=false");
+    return res.status(200).send("OK");
   }
 
-  // ---- UID not in ban list → OK, isban=false ----
+  // Not in ban list → OK
   const banStart = BANS[playerId];
   if (!banStart) {
-    res.setHeader("x-ban-status", "ok");
-    res.setHeader("x-ban-color", "green");
-    return res.status(200).send(`OK userid=${playerId} isban=false`);
+    return res.status(200).send("OK");
   }
 
-  // ---- Check 5-day window ----
+  // Check 5-day window
   const endTime = Date.parse(banStart) + SUSPENSION_MS;
-  const now = Date.now();
 
-  if (now >= endTime) {
-    res.setHeader("x-ban-status", "ok");
-    res.setHeader("x-ban-color", "green");
-    res.setHeader("x-ban-expired", "true");
-    return res.status(200).send(`OK userid=${playerId} isban=false`);
+  if (Date.now() >= endTime) {
+    return res.status(200).send("OK");
   }
 
-  // ---- Still suspended → SUSPENDED, isban=true ----
-  const endDate = new Date(endTime).toISOString();
-  const daysLeft = Math.max(1, Math.ceil((endTime - now) / DAY_MS));
-
-  res.setHeader("x-ban-status", "suspended");
-  res.setHeader("x-ban-color", "red");
-  res.setHeader("x-ban-until", endDate);
-  res.setHeader("x-ban-days-left", String(daysLeft));
-  return res.status(200).send(`SUSPENDED userid=${playerId} isban=true until=${endDate} daysleft=${daysLeft}`);
+  // Still suspended — plain ISO date only
+  return res.status(200).send(`SUSPENDED ${new Date(endTime).toISOString()}`);
 }

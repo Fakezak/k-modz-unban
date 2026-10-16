@@ -1,22 +1,13 @@
-// api/id.js — no hash, only /id?id=<UID>
+// api/id.js — /id?id=<UID> returns OK + userid + isban
 const SUSPENSION_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ============================================================
 // BAN LIST — "UID": "ISO date ban started"
-// Server adds 5 days. Delete the line to unban early.
+// Server adds 5 days. Delete the line to unban.
 // ============================================================
 const BANS = {
   "8749607076": "2026-10-15T00:00:00Z",
-};
-
-// ============================================================
-// MESSAGES
-// ============================================================
-const MESSAGES = {
-  banned:     "You are suspended",
-  unbanNotif: "Your suspension has ended — welcome back",
-  ok:         "OK",
 };
 
 export default function handler(req, res) {
@@ -26,22 +17,19 @@ export default function handler(req, res) {
 
   const playerId = req.query.id;
 
-  // ---- No UID → OK ----
+  // ---- No UID → OK with empty userid ----
   if (!playerId) {
     res.setHeader("x-ban-status", "ok");
     res.setHeader("x-ban-color", "green");
-    res.setHeader("x-ban-message", MESSAGES.ok);
-    return res.status(200).send(MESSAGES.ok);
+    return res.status(200).send("OK userid=unknown isban=false");
   }
 
-  // ---- UID not banned → OK ----
+  // ---- UID not in ban list → OK, isban=false ----
   const banStart = BANS[playerId];
   if (!banStart) {
     res.setHeader("x-ban-status", "ok");
     res.setHeader("x-ban-color", "green");
-    res.setHeader("x-ban-message", MESSAGES.ok);
-    res.setHeader("x-ban-uid", playerId);
-    return res.status(200).send(MESSAGES.ok);
+    return res.status(200).send(`OK userid=${playerId} isban=false`);
   }
 
   // ---- Check 5-day window ----
@@ -51,24 +39,17 @@ export default function handler(req, res) {
   if (now >= endTime) {
     res.setHeader("x-ban-status", "ok");
     res.setHeader("x-ban-color", "green");
-    res.setHeader("x-ban-message", MESSAGES.unbanNotif);
-    res.setHeader("x-ban-uid", playerId);
     res.setHeader("x-ban-expired", "true");
-    return res.status(200).send(MESSAGES.unbanNotif);
+    return res.status(200).send(`OK userid=${playerId} isban=false`);
   }
 
-  // ---- Still suspended → red ----
+  // ---- Still suspended → SUSPENDED, isban=true ----
   const endDate = new Date(endTime).toISOString();
   const daysLeft = Math.max(1, Math.ceil((endTime - now) / DAY_MS));
-  const hoursLeft = Math.max(1, Math.ceil((endTime - now) / (60 * 60 * 1000)));
-  const detail = `You have been suspended for 5 days (${daysLeft} day(s) left)`;
 
   res.setHeader("x-ban-status", "suspended");
   res.setHeader("x-ban-color", "red");
-  res.setHeader("x-ban-message", detail);
-  res.setHeader("x-ban-uid", playerId);
   res.setHeader("x-ban-until", endDate);
   res.setHeader("x-ban-days-left", String(daysLeft));
-  res.setHeader("x-ban-hours-left", String(hoursLeft));
-  return res.status(200).send(detail);
+  return res.status(200).send(`SUSPENDED userid=${playerId} isban=true until=${endDate} daysleft=${daysLeft}`);
 }

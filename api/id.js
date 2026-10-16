@@ -1,4 +1,4 @@
-// api/id.js — responses in the format the client understands
+// api/id.js — plain OK / SUSPENDED format only
 const SUSPENSION_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
 
 const BANS = {
@@ -12,7 +12,7 @@ export default function handler(req, res) {
 
   const playerId = req.query.id;
 
-  // No UID → OK
+  // No ID sent → OK (game treats as new player)
   if (!playerId) {
     return res.status(200).send("OK");
   }
@@ -25,11 +25,10 @@ export default function handler(req, res) {
 
   // Check 5-day window
   const endTime = Date.parse(banStart) + SUSPENSION_MS;
-
   if (Date.now() >= endTime) {
     return res.status(200).send("OK");
   }
 
-  // Still suspended — plain ISO date only
+  // Suspended — plain ISO date only
   return res.status(200).send(`SUSPENDED ${new Date(endTime).toISOString()}`);
 }
